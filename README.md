@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="static/logo-keyprotect.png" alt="Logo KeyProtect" width="700">
+</p>
+
 # KeyProtect — Sistema de Controle de Chaves CEFET/RJ
 
 Sistema web desenvolvido em **Python + Flask** para controle de retirada, devolução, consulta e gestão de chaves em ambiente institucional.

@@ -694,27 +694,51 @@ def chaves():
 @app.route("/chaves/cadastrar", methods=["GET", "POST"])
 def cadastrar_chave():
     if request.method == "POST":
-        local = request.form["local"].strip()
-        descricao = request.form["descricao"].strip()
+        local = request.form.get("local", "").strip()
+        descricao = request.form.get("descricao", "").strip()
+        tipo = request.form.get("tipo", "").strip()
+        andar = request.form.get("andar", "").strip()
         criado_em = datetime.now().strftime("%d/%m/%Y %H:%M")
 
         if not local:
-            flash("Local da chave é obrigatório.", "erro")
+            flash("Local/Sala é obrigatório.", "erro")
             return redirect(url_for("cadastrar_chave"))
+
+        if not tipo:
+            flash("Tipo de ambiente é obrigatório.", "erro")
+            return redirect(url_for("cadastrar_chave"))
+
+        if andar:
+            andar = int(andar)
+        else:
+            andar = None
 
         conexao = conectar_banco()
         cursor = conexao.cursor()
 
         try:
-            # Primeiro cadastra a chave sem código definitivo
             cursor.execute("""
-                INSERT INTO chaves (codigo, local, descricao, status, criado_em)
-                VALUES (?, ?, ?, ?, ?)
-            """, ("TEMP", local, descricao, "Disponível", criado_em))
+                INSERT INTO chaves (
+                    codigo,
+                    local,
+                    descricao,
+                    status,
+                    criado_em,
+                    tipo,
+                    andar
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+            """, (
+                "TEMP",
+                local,
+                descricao,
+                "Disponível",
+                criado_em,
+                tipo,
+                andar
+            ))
 
             chave_id = cursor.lastrowid
-
-            # Depois gera o código sequencial baseado no ID automático
             codigo = f"CH-{chave_id:03d}"
 
             cursor.execute("""
@@ -1683,4 +1707,4 @@ def exportar_historico_pdf():
 
 if __name__ == "__main__":
     criar_tabelas()
-    app.run(debug=True)
+    app.run(host="192.168.0.101", port=5000, debug=True)

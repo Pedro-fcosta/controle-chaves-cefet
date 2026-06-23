@@ -237,116 +237,284 @@
     const retiradasDiaLabels = JSON.parse('{{ retiradas_por_dia_labels | tojson | safe }}');
     const retiradasDiaValores = JSON.parse('{{ retiradas_por_dia_valores | tojson | safe }}');
 
-    new Chart(document.getElementById("graficoStatusChaves"), {
+    function temaAtualEhEscuro() {
+        const temaHtml = document.documentElement.getAttribute("data-theme");
+        const temaSalvo = localStorage.getItem("tema");
+
+        return temaHtml === "dark" || temaSalvo === "dark";
+    }
+
+    function obterCoresGrafico() {
+        if (temaAtualEhEscuro()) {
+            return {
+                textoPrincipal: "#f8fafc",
+                textoSecundario: "#cbd5e1",
+                grid: "rgba(148, 163, 184, 0.16)",
+                borda: "rgba(148, 163, 184, 0.25)",
+                azulBarra: "#2563eb",
+                azulLinha: "#60a5fa",
+                azulLinhaFundo: "rgba(96, 165, 250, 0.14)"
+            };
+        }
+
+        return {
+            textoPrincipal: "#0f172a",
+            textoSecundario: "#64748b",
+            grid: "rgba(15, 23, 42, 0.12)",
+            borda: "rgba(15, 23, 42, 0.18)",
+            azulBarra: "#0b5fc0",
+            azulLinha: "#003f91",
+            azulLinhaFundo: "rgba(0, 63, 145, 0.12)"
+        };
+    }
+
+    function opcoesBaseGrafico() {
+        const cores = obterCoresGrafico();
+
+        return {
+            responsive: true,
+            maintainAspectRatio: true,
+            plugins: {
+                legend: {
+                    labels: {
+                        color: cores.textoSecundario,
+                        font: {
+                            size: 12,
+                            weight: "600"
+                        }
+                    }
+                },
+                tooltip: {
+                    backgroundColor: temaAtualEhEscuro() ? "#020617" : "#ffffff",
+                    titleColor: cores.textoPrincipal,
+                    bodyColor: cores.textoPrincipal,
+                    borderColor: cores.borda,
+                    borderWidth: 1,
+                    padding: 12
+                }
+            }
+        };
+    }
+
+    function configurarEscalas(config, eixoX = true, eixoY = true) {
+        const cores = obterCoresGrafico();
+
+        if (!config.options.scales) {
+            config.options.scales = {};
+        }
+
+        if (eixoX) {
+            config.options.scales.x = {
+                beginAtZero: true,
+                ticks: {
+                    color: cores.textoSecundario,
+                    precision: 0
+                },
+                grid: {
+                    color: cores.grid
+                },
+                border: {
+                    color: cores.borda
+                }
+            };
+        }
+
+        if (eixoY) {
+            config.options.scales.y = {
+                beginAtZero: true,
+                ticks: {
+                    color: cores.textoSecundario,
+                    precision: 0
+                },
+                grid: {
+                    color: cores.grid
+                },
+                border: {
+                    color: cores.borda
+                }
+            };
+        }
+
+        return config;
+    }
+
+    const coresIniciais = obterCoresGrafico();
+
+    const graficoStatusChaves = new Chart(document.getElementById("graficoStatusChaves"), {
         type: "doughnut",
         data: {
             labels: statusChavesLabels,
             datasets: [{
                 data: statusChavesValores,
                 backgroundColor: ["#1f9d55", "#dc2626"],
-                borderWidth: 0
+                borderColor: temaAtualEhEscuro() ? "#1e293b" : "#ffffff",
+                borderWidth: 3
             }]
         },
         options: {
+            ...opcoesBaseGrafico(),
+            cutout: "58%",
             plugins: {
+                ...opcoesBaseGrafico().plugins,
                 legend: {
-                    position: "bottom"
+                    position: "bottom",
+                    labels: {
+                        color: coresIniciais.textoSecundario,
+                        font: {
+                            size: 12,
+                            weight: "600"
+                        },
+                        padding: 16
+                    }
                 }
             }
         }
     });
 
-    new Chart(document.getElementById("graficoTopChaves"), {
+    const graficoTopChaves = new Chart(document.getElementById("graficoTopChaves"), configurarEscalas({
         type: "bar",
         data: {
             labels: topChavesLabels,
             datasets: [{
                 label: "Usos",
                 data: topChavesValores,
-                backgroundColor: "#0b5fc0",
+                backgroundColor: coresIniciais.azulBarra,
                 borderRadius: 8
             }]
         },
         options: {
-            responsive: true,
+            ...opcoesBaseGrafico(),
             plugins: {
+                ...opcoesBaseGrafico().plugins,
                 legend: {
                     display: false
                 }
-            },
-            scales: {
-                y: {
-                    beginAtZero: true,
-                    ticks: {
-                        precision: 0
-                    }
-                }
             }
         }
-    });
+    }));
 
-    new Chart(document.getElementById("graficoTopUsuarios"), {
+    const graficoTopUsuarios = new Chart(document.getElementById("graficoTopUsuarios"), configurarEscalas({
         type: "bar",
         data: {
             labels: topUsuariosLabels,
             datasets: [{
                 label: "Retiradas",
                 data: topUsuariosValores,
-                backgroundColor: "#003f91",
+                backgroundColor: coresIniciais.azulBarra,
                 borderRadius: 8
             }]
         },
         options: {
+            ...opcoesBaseGrafico(),
             indexAxis: "y",
-            responsive: true,
             plugins: {
+                ...opcoesBaseGrafico().plugins,
                 legend: {
                     display: false
                 }
-            },
-            scales: {
-                x: {
-                    beginAtZero: true,
-                    ticks: {
-                        precision: 0
-                    }
-                }
             }
         }
-    });
+    }));
 
-    new Chart(document.getElementById("graficoRetiradasDia"), {
+    const graficoRetiradasDia = new Chart(document.getElementById("graficoRetiradasDia"), configurarEscalas({
         type: "line",
         data: {
             labels: retiradasDiaLabels,
             datasets: [{
                 label: "Retiradas",
                 data: retiradasDiaValores,
-                borderColor: "#003f91",
-                backgroundColor: "rgba(0, 63, 145, 0.12)",
+                borderColor: coresIniciais.azulLinha,
+                backgroundColor: coresIniciais.azulLinhaFundo,
                 fill: true,
                 tension: 0.25,
                 pointRadius: 4,
-                pointBackgroundColor: "#003f91"
+                pointBackgroundColor: coresIniciais.azulLinha,
+                pointBorderColor: coresIniciais.azulLinha
             }]
         },
         options: {
-            responsive: true,
+            ...opcoesBaseGrafico(),
             plugins: {
+                ...opcoesBaseGrafico().plugins,
                 legend: {
-                    display: true
-                }
-            },
-            scales: {
-                y: {
-                    beginAtZero: true,
-                    ticks: {
-                        precision: 0
+                    display: true,
+                    labels: {
+                        color: coresIniciais.textoSecundario,
+                        font: {
+                            size: 12,
+                            weight: "600"
+                        }
                     }
                 }
             }
         }
-    });
+    }));
+
+    const graficosDashboard = [
+        graficoStatusChaves,
+        graficoTopChaves,
+        graficoTopUsuarios,
+        graficoRetiradasDia
+    ];
+
+    function atualizarTemaDosGraficos() {
+        const cores = obterCoresGrafico();
+
+        graficosDashboard.forEach((grafico) => {
+            if (!grafico) return;
+
+            if (grafico.options.plugins?.legend?.labels) {
+                grafico.options.plugins.legend.labels.color = cores.textoSecundario;
+            }
+
+            if (grafico.options.plugins?.tooltip) {
+                grafico.options.plugins.tooltip.backgroundColor = temaAtualEhEscuro() ? "#020617" : "#ffffff";
+                grafico.options.plugins.tooltip.titleColor = cores.textoPrincipal;
+                grafico.options.plugins.tooltip.bodyColor = cores.textoPrincipal;
+                grafico.options.plugins.tooltip.borderColor = cores.borda;
+            }
+
+            if (grafico.options.scales) {
+                Object.keys(grafico.options.scales).forEach((eixo) => {
+                    const escala = grafico.options.scales[eixo];
+
+                    if (escala.ticks) {
+                        escala.ticks.color = cores.textoSecundario;
+                    }
+
+                    if (escala.grid) {
+                        escala.grid.color = cores.grid;
+                    }
+
+                    escala.border = {
+                        color: cores.borda
+                    };
+                });
+            }
+
+            grafico.data.datasets.forEach((dataset) => {
+                if (grafico.config.type === "bar") {
+                    dataset.backgroundColor = cores.azulBarra;
+                }
+
+                if (grafico.config.type === "line") {
+                    dataset.borderColor = cores.azulLinha;
+                    dataset.backgroundColor = cores.azulLinhaFundo;
+                    dataset.pointBackgroundColor = cores.azulLinha;
+                    dataset.pointBorderColor = cores.azulLinha;
+                }
+
+                if (grafico.config.type === "doughnut") {
+                    dataset.borderColor = temaAtualEhEscuro() ? "#1e293b" : "#ffffff";
+                }
+            });
+
+            grafico.update();
+        });
+    }
+
+    document.addEventListener("temaAlterado", atualizarTemaDosGraficos);
+    atualizarTemaDosGraficos();
 </script>
 
 {% endblock %}

@@ -6,6 +6,7 @@
 
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 </head>
+
 <body>
 
     <header class="topbar">
@@ -25,6 +26,14 @@
                 <a href="{{ url_for('usuarios') }}">Usuários</a>
                 <a href="{{ url_for('historico') }}">Histórico</a>
                 <a href="{{ url_for('dashboard') }}">Dashboard</a>
+            </nav>
+
+            <div class="theme-switch-wrapper">
+                <button type="button" id="themeToggle" class="theme-toggle" aria-label="Alternar tema">
+                    <span class="theme-toggle-icon">🌙</span>
+                    <span class="theme-toggle-text">Tema escuro</span>
+                </button>
+            </div>
 
         </div>
     </header>
@@ -46,6 +55,35 @@
         {% block content %}{% endblock %}
 
     </main>
+
+    <script>
+        const themeToggle = document.getElementById("themeToggle");
+        const themeIcon = document.querySelector(".theme-toggle-icon");
+        const themeText = document.querySelector(".theme-toggle-text");
+
+        function aplicarTema(tema) {
+            document.documentElement.setAttribute("data-theme", tema);
+            localStorage.setItem("tema", tema);
+
+            if (tema === "dark") {
+                themeIcon.textContent = "☀️";
+                themeText.textContent = "Tema claro";
+            } else {
+                themeIcon.textContent = "🌙";
+                themeText.textContent = "Tema escuro";
+            }
+            document.dispatchEvent(new CustomEvent("temaAlterado", { detail: { tema: tema } }));
+        }
+
+        const temaSalvo = localStorage.getItem("tema") || "light";
+        aplicarTema(temaSalvo);
+
+        themeToggle.addEventListener("click", () => {
+            const temaAtual = document.documentElement.getAttribute("data-theme");
+            const novoTema = temaAtual === "dark" ? "light" : "dark";
+            aplicarTema(novoTema);
+        });
+    </script>
 
 </body>
 </html>

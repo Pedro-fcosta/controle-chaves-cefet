@@ -1521,84 +1521,35 @@ def exportar_dashboard_pdf():
 # EXPORTAÇÃO CSV
 # =========================
 
-@app.route("/exportar-historico")
-def exportar_historico():
+
+
+def buscar_historico_filtrado(args):
     conexao = conectar_banco()
 
-    movimentacoes = conexao.execute("""
-        SELECT 
-            movimentacoes.id,
-            movimentacoes.data_retirada,
-            movimentacoes.data_devolucao,
-            movimentacoes.status,
-            movimentacoes.observacao,
-            usuarios.nome,
-            usuarios.matricula,
-            usuarios.curso_setor,
-            chaves.codigo,
-            chaves.local,
-            chaves.descricao
-        FROM movimentacoes
-        JOIN usuarios ON movimentacoes.usuario_id = usuarios.id
-        JOIN chaves ON movimentacoes.chave_id = chaves.id
-        ORDER BY movimentacoes.id DESC
-    """).fetchall()
+    busca = args.get("busca", "").strip()
+    pessoa = args.get("pessoa", "").strip()
+    matricula = args.get("matricula", "").strip()
+    sala = args.get("sala", "").strip()
+    chave = args.get("chave", "").strip()
+    status = args.get("status", "").strip()
+    tipo_data = args.get("tipo_data", "retirada").strip()
+    periodo = args.get("periodo", "").strip()
+    data_inicio = args.get("data_inicio", "").strip()
+    data_fim = args.get("data_fim", "").strip()
+    hora_inicio = args.get("hora_inicio", "").strip()
+    hora_fim = args.get("hora_fim", "").strip()
 
-    conexao.close()
+    coluna_data = "movimentacoes.data_devolucao" if tipo_data == "devolucao" else "movimentacoes.data_retirada"
 
-    pasta_exports = "exports"
+    data_sql = f"""
+        substr({coluna_data}, 7, 4) || '-' ||
+        substr({coluna_data}, 4, 2) || '-' ||
+        substr({coluna_data}, 1, 2)
+    """
 
-    if not os.path.exists(pasta_exports):
-        os.makedirs(pasta_exports)
+    hora_sql = f"substr({coluna_data}, 12, 5)"
 
-    caminho_arquivo = os.path.join(pasta_exports, "historico_chaves.csv")
-
-    with open(caminho_arquivo, mode="w", newline="", encoding="utf-8-sig") as arquivo:
-        escritor = csv.writer(arquivo, delimiter=";")
-
-        escritor.writerow([
-            "ID",
-            "Código da chave",
-            "Local",
-            "Descrição da chave",
-            "Responsável",
-            "Matrícula",
-            "Curso/Setor",
-            "Data retirada",
-            "Data devolução",
-            "Status",
-            "Observação"
-        ])
-
-        for mov in movimentacoes:
-            escritor.writerow([
-                mov["id"],
-                mov["codigo"],
-                mov["local"],
-                mov["descricao"],
-                mov["nome"],
-                mov["matricula"],
-                mov["curso_setor"],
-                mov["data_retirada"],
-                mov["data_devolucao"] or "",
-                mov["status"],
-                mov["observacao"] or ""
-            ])
-
-    return send_file(
-        caminho_arquivo,
-        as_attachment=True,
-        download_name="historico_chaves.csv"
-    )
-
-
-
-
-@app.route("/exportar-historico-pdf")
-def exportar_historico_pdf():
-    conexao = conectar_banco()
-
-    movimentacoes = conexao.execute("""
+    query = """
         SELECT
             movimentacoes.id,
             movimentacoes.data_retirada,
@@ -1608,6 +1559,7 @@ def exportar_historico_pdf():
 
             usuario_retirada.nome AS nome_retirada,
             usuario_retirada.matricula AS matricula_retirada,
+            usuario_retirada.curso_setor AS curso_setor_retirada,
 
             usuario_devolucao.nome AS nome_devolucao,
             usuario_devolucao.matricula AS matricula_devolucao,
@@ -1627,10 +1579,166 @@ def exportar_historico_pdf():
         JOIN chaves
             ON movimentacoes.chave_id = chaves.id
 
-        ORDER BY movimentacoes.id DESC
-    """).fetchall()
+        WHERE 1 = 1
+    """
 
+    parametros = []
+
+    if busca:
+        termo = f"%{busca}%"
+        query += """
+            AND (
+                chaves.codigo LIKE ?
+                OR chaves.local LIKE ?
+                OR chaves.descricao LIKE ?
+                OR usuario_retirada.nome LIKE ?
+                OR usuario_retirada.matricula LIKE ?
+                OR usuario_devolucao.nome LIKE ?
+                OR usuario_devolucao.matricula LIKE ?
+                OR movimentacoes.status LIKE ?
+                OR movimentacoes.observacao LIKE ?
+            )
+        """
+        parametros.extend([termo] * 9)
+
+    if pessoa:
+        termo = f"%{pessoa}%"
+        query += """
+            AND (
+                usuario_retirada.nome LIKE ?
+                OR usuario_devolucao.nome LIKE ?
+            )
+        """
+        parametros.extend([termo, termo])
+
+    if matricula:
+        termo = f"%{matricula}%"
+        query += """
+            AND (
+                usuario_retirada.matricula LIKE ?
+                OR usuario_devolucao.matricula LIKE ?
+            )
+        """
+        parametros.extend([termo, termo])
+
+    if sala:
+        query += " AND chaves.local LIKE ?"
+        parametros.append(f"%{sala}%")
+
+    if chave:
+        query += " AND chaves.codigo LIKE ?"
+        parametros.append(f"%{chave}%")
+
+    if status and status.lower() not in ["todos", "todo"]:
+        status_normalizado = status
+
+        if status.lower() in ["aberto", "em_aberto", "em aberto"]:
+            status_normalizado = "Em aberto"
+        elif status.lower() in ["finalizado", "finalizada"]:
+            status_normalizado = "Finalizada"
+
+        query += " AND movimentacoes.status = ?"
+        parametros.append(status_normalizado)
+
+    if periodo and periodo.lower() not in ["todos", "todo"]:
+        hoje = datetime.now()
+
+        if periodo in ["1_dia", "1dia", "dia", "hoje"]:
+            data_limite = hoje - timedelta(days=1)
+        elif periodo in ["7_dias", "7dias", "7"]:
+            data_limite = hoje - timedelta(days=7)
+        elif periodo in ["1_mes", "1mes", "30_dias", "30dias"]:
+            data_limite = hoje - timedelta(days=30)
+        elif periodo in ["6_meses", "6meses", "180_dias", "180dias"]:
+            data_limite = hoje - timedelta(days=180)
+        else:
+            data_limite = None
+
+        if data_limite:
+            query += f" AND ({data_sql}) >= ?"
+            parametros.append(data_limite.strftime("%Y-%m-%d"))
+
+    if data_inicio:
+        query += f" AND ({data_sql}) >= ?"
+        parametros.append(data_inicio)
+
+    if data_fim:
+        query += f" AND ({data_sql}) <= ?"
+        parametros.append(data_fim)
+
+    if hora_inicio:
+        query += f" AND ({hora_sql}) >= ?"
+        parametros.append(hora_inicio)
+
+    if hora_fim:
+        query += f" AND ({hora_sql}) <= ?"
+        parametros.append(hora_fim)
+
+    query += " ORDER BY movimentacoes.id DESC"
+
+    movimentacoes = conexao.execute(query, parametros).fetchall()
     conexao.close()
+
+    return movimentacoes
+
+
+@app.route("/exportar-historico")
+def exportar_historico():
+    movimentacoes = buscar_historico_filtrado(request.args)
+
+    pasta_exports = "exports"
+
+    if not os.path.exists(pasta_exports):
+        os.makedirs(pasta_exports)
+
+    caminho_arquivo = os.path.join(pasta_exports, "historico_chaves.csv")
+
+    with open(caminho_arquivo, mode="w", newline="", encoding="utf-8-sig") as arquivo:
+        escritor = csv.writer(arquivo, delimiter=";")
+
+        escritor.writerow([
+            "ID",
+            "Código da chave",
+            "Local",
+            "Descrição da chave",
+            "Quem retirou",
+            "Matrícula retirada",
+            "Curso/Setor",
+            "Quem devolveu",
+            "Matrícula devolução",
+            "Data retirada",
+            "Data devolução",
+            "Status",
+            "Observação"
+        ])
+
+        for mov in movimentacoes:
+            escritor.writerow([
+                mov["id"],
+                mov["codigo"],
+                mov["local"],
+                mov["descricao"] or "",
+                mov["nome_retirada"],
+                mov["matricula_retirada"],
+                mov["curso_setor_retirada"] or "",
+                mov["nome_devolucao"] or "",
+                mov["matricula_devolucao"] or "",
+                mov["data_retirada"],
+                mov["data_devolucao"] or "",
+                mov["status"],
+                mov["observacao"] or ""
+            ])
+
+    return send_file(
+        caminho_arquivo,
+        as_attachment=True,
+        download_name="historico_chaves.csv"
+    )
+
+
+@app.route("/exportar-historico-pdf")
+def exportar_historico_pdf():
+    movimentacoes = buscar_historico_filtrado(request.args)
 
     pasta_exports = "exports"
 
@@ -1690,29 +1798,32 @@ def exportar_historico_pdf():
             mov["status"]
         ])
 
-    tabela = Table(
-        dados_tabela,
-        repeatRows=1,
-        colWidths=[30, 55, 75, 100, 75, 100, 75, 80, 80, 65]
-    )
+    if len(dados_tabela) == 1:
+        elementos.append(Paragraph("Nenhuma movimentação encontrada para os filtros aplicados.", estilos["Normal"]))
+    else:
+        tabela = Table(
+            dados_tabela,
+            repeatRows=1,
+            colWidths=[30, 55, 75, 100, 75, 100, 75, 80, 80, 65]
+        )
 
-    tabela.setStyle(TableStyle([
-        ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#0d47a1")),
-        ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
-        ("ALIGN", (0, 0), (-1, -1), "CENTER"),
-        ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
-        ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
-        ("FONTNAME", (0, 1), (-1, -1), "Helvetica"),
-        ("FONTSIZE", (0, 0), (-1, 0), 8),
-        ("FONTSIZE", (0, 1), (-1, -1), 7),
-        ("BOTTOMPADDING", (0, 0), (-1, 0), 8),
-        ("TOPPADDING", (0, 0), (-1, -1), 4),
-        ("BOTTOMPADDING", (0, 1), (-1, -1), 4),
-        ("GRID", (0, 0), (-1, -1), 0.25, colors.grey),
-        ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, colors.HexColor("#f2f6fc")])
-    ]))
+        tabela.setStyle(TableStyle([
+            ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#0d47a1")),
+            ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
+            ("ALIGN", (0, 0), (-1, -1), "CENTER"),
+            ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+            ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+            ("FONTNAME", (0, 1), (-1, -1), "Helvetica"),
+            ("FONTSIZE", (0, 0), (-1, 0), 8),
+            ("FONTSIZE", (0, 1), (-1, -1), 7),
+            ("BOTTOMPADDING", (0, 0), (-1, 0), 8),
+            ("TOPPADDING", (0, 0), (-1, -1), 4),
+            ("BOTTOMPADDING", (0, 1), (-1, -1), 4),
+            ("GRID", (0, 0), (-1, -1), 0.25, colors.grey),
+            ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, colors.HexColor("#f2f6fc")])
+        ]))
 
-    elementos.append(tabela)
+        elementos.append(tabela)
 
     documento.build(elementos)
 

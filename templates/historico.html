@@ -132,11 +132,17 @@
         </div>
 
         <div class="historico-exportacoes">
-            <a href="{{ url_for('exportar_historico') }}" class="btn btn-principal">
+            <a 
+                href="{{ url_for('exportar_historico') }}{% if request.query_string %}?{{ request.query_string.decode() }}{% endif %}" 
+                class="btn btn-principal"
+            >
                 Exportar CSV
             </a>
 
-            <a href="{{ url_for('exportar_historico_pdf') }}" class="btn btn-pdf">
+            <a 
+                href="{{ url_for('exportar_historico_pdf') }}{% if request.query_string %}?{{ request.query_string.decode() }}{% endif %}" 
+                class="btn btn-secundario"
+            >
                 Exportar PDF
             </a>
         </div>

@@ -1,0 +1,3 @@
+﻿ID;Código da chave;Local;Descrição da chave;Quem retirou;Matrícula retirada;Curso/Setor;Quem devolveu;Matrícula devolução;Data retirada;Data devolução;Status;Observação
+6;CH-006;C201;;Pedro Fernandes da Costa;2312686;Engenharia Mecânica;;;23/06/2026 22:03;;Em aberto;
+1;CH-006;C201;;Pedro Fernandes da Costa;2312686;Engenharia Mecânica;Seu nome;1234567;22/06/2026 23:52;23/06/2026 22:03;Finalizada;
